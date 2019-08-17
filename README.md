@@ -26,8 +26,7 @@ Disassembly View w/Decompiler
 - The output zip file will be created within `/dist`
 
 ## Installation
-- As SH-2 support is currently being merged into Ghidra you must first install the SuperH processor module from [VGKintsugi/ghidra](https://github.com/VGKintsugi/ghidra/tree/master/Ghidra/Processors/SuperH). 
--- Copy the SuperH directory to your ghidra/Ghidra/Processors/ directory
+- As SH-2 support is currently being merged into Ghidra you must first install the SuperH processor module from [VGKintsugi/ghidra](https://github.com/VGKintsugi/ghidra/tree/master/Ghidra/Processors/SuperH). Copy the SuperH directory to your ghidra/Ghidra/Processors/ directory
 - Copy the zip file to ``<Ghidra install directory>/Extensions/Ghidra``.
 - Start Ghidra and use the "Install Extensions" dialog to finish the installation. (``File -> Install Extensions...``).
 
