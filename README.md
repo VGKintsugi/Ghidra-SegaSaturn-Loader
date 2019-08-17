@@ -33,7 +33,7 @@ Disassembly View w/Decompiler
 
 ## Credits/References
 - [Sega Saturn SH-2 Memory Map](https://wiki.yabause.org/index.php5?title=SH-2CPU)
-- [ISO 9660 documented](https://wiki.osdev.org/ISO_9660)
+- [ISO 9660 documentation](https://wiki.osdev.org/ISO_9660)
 - Thank you to @mumbel, @loudinthecloud, and the Ghidra team for helping get the SuperH plugin merged to Ghidra
 
 
