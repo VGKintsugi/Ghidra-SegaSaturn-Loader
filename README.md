@@ -25,8 +25,8 @@ Disassembly View w/Decompiler
 - The loader will load backup cart memory, high work RAM, and low work RAM to the correct places
 
 ### Applying Sega Saturn Library Signatures
-- after loading in Ghidra, open "Script Manager" and execute ApplySig.py
-- select the signature file to apply
+- After loading in Ghidra, open "Script Manager" and execute ApplySig.py
+- Select the signature file to apply
 
 ## Issues
 - Code quality needs serious improvement and refactoring
@@ -39,8 +39,8 @@ Disassembly View w/Decompiler
 - The output zip file will be created within `/dist`
 
 ## Installation
-- As SH-2 support is currently being merged into Ghidra you must first install the SuperH processor module from [VGKintsugi/ghidra](https://github.com/VGKintsugi/ghidra/tree/master/Ghidra/Processors/SuperH). 
--- Copy the SuperH directory to your ghidra/Ghidra/Processors/ directory
+- As SH-2 support is not yet released (upcoming 9.1 release of Ghidra), you must first install the SuperH processor module from [NationalSecurityAgency/ghidra](https://github.com/NationalSecurityAgency/ghidra/tree/master/Ghidra/Processors/SuperH)'s trunk. 
+    - Copy the SuperH directory to your ghidra/Ghidra/Processors/ directory
 - Copy the zip file to ``<Ghidra install directory>/Extensions/Ghidra``.
 - Start Ghidra and use the "Install Extensions" dialog to finish the installation. (``File -> Install Extensions...``).
 - (Optional but recommended) Install the [ApplySig](https://github.com/NWMonster/ApplySig) script so you can use Sega Saturn library signatures. Copy to a ``ghidra_scripts`` directory.
@@ -55,6 +55,6 @@ Disassembly View w/Decompiler
 - [Sega Saturn Library Signatures](http://cyberwarriorx.com/saturn-utilities) -  CyberWarriorX's Sega Saturn library signatures
 - Thank you to @mumbel, @loudinthecloud, and the Ghidra team for helping get the SuperH plugin merged to Ghidra
 - Thank you to @TrekkiesUnite118 for Java help and code review advice
-- Thank you to @cyberwarriorx for just tons of amazing open source Saturn utilities. 
+- Thank you to @CyberWarriorX for just tons of amazing open source Saturn utilities. 
 
 
