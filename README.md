@@ -39,8 +39,7 @@ Disassembly View w/Decompiler
 - The output zip file will be created within `/dist`
 
 ## Installation
-- As SH-2 support is not yet released (upcoming 9.1 release of Ghidra), you must first install the SuperH processor module from [NationalSecurityAgency/ghidra](https://github.com/NationalSecurityAgency/ghidra/tree/master/Ghidra/Processors/SuperH)'s trunk. 
-    - Copy the SuperH directory to your ghidra/Ghidra/Processors/ directory
+- Ghidra 9.1 added SH-1/SH-2 support.     
 - Copy the zip file to ``<Ghidra install directory>/Extensions/Ghidra``.
 - Start Ghidra and use the "Install Extensions" dialog to finish the installation. (``File -> Install Extensions...``).
 - (Optional but recommended) Install the [ApplySig](https://github.com/NWMonster/ApplySig) script so you can use Sega Saturn library signatures. Copy to a ``ghidra_scripts`` directory.
