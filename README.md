@@ -2,7 +2,7 @@
 
 A (WIP) Ghidra loader for the Sega Saturn. Currently supports:
 - ISO disc images
-- Yabause Save States (YSS)
+- Yabause Save States (YSS)  
 Grab from [Releases](https://github.com/VGKintsugi/Ghidra-SegaSaturn-Loader/releases/) or build from source. 
 
 ## Screenshots
