@@ -8,7 +8,7 @@ Grab from [Releases](https://github.com/VGKintsugi/Ghidra-SegaSaturn-Loader/rele
 
 ## Screenshots
 
-Loader screenshot
+Loader screenshot  
 ![Loader](screenshot_loader.png)
 
 Disassembly View w/Decompiler
