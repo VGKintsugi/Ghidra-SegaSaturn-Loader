@@ -45,7 +45,8 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 	public static final int SATURN_INVALID = -1;
 	public static final int SATURN_ISO = 0;
-	public static final int SATURN_YSS = 1;
+	public static final int SATURN_MSS = 1;
+	public static final int SATURN_YSS = 2;
 
 	public static int m_loadType = SATURN_INVALID;
 
@@ -59,6 +60,18 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 	public static final int AREA_CODE_SIZE = 0x20;
 	public static final int AREA_CODE_MAGIC = 0xA00E0009;
 
+	// master and slave registers parsed from the save states
+	long MSH2_PC;
+	long MSH2_PR;
+	long MSH2_R15;
+
+	long SSH2_PC;
+	long SSH2_PR;
+	long SSH2_R15;
+
+	// hashmap of all sections in the Mednafen Save State
+	HashMap<String, Long> mssSectionMap;
+
 	//
 	// Ghidra loader required functions
 	//
@@ -68,7 +81,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 		// Name the loader.  This name must match the name of the loader in the .opinion
 		// files.
-		return "Sega Saturn (ISO/YSS)";
+		return "Sega Saturn (ISO/MC/YSS)";
 	}
 
 	@Override
@@ -76,11 +89,14 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 		List<LoadSpec> loadSpecs = new ArrayList<>();
 
 		//
-		// Check if this is a Sega Saturn ISO or Yabause Save State
+		// Check if this is a Sega Saturn ISO, Mednafen Save State, or Yabause Save State
 		//
 
 		if(isSegaSaturnIso(provider)) {
 			m_loadType = SATURN_ISO;
+		}
+		else if(isMednafenSaveState(provider)) {
+			m_loadType = SATURN_MSS;
 		}
 		else if(isYabauseSaveState(provider)) {
 			m_loadType = SATURN_YSS;
@@ -95,11 +111,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 	}
 
 	@Override
-	protected void load(ByteProvider provider, LoadSpec loadSpec, List<Option> options, Program program, TaskMonitor monitor, MessageLog log)
-
-	/*protected void load(ByteProvider provider, LoadSpec loadSpec, List<Option> options,
-			Program program, MemoryConflictHandler handler, TaskMonitor monitor, MessageLog log)*/
-			throws CancelledException, IOException {
+	protected void load(ByteProvider provider, LoadSpec loadSpec, List<Option> options, Program program, TaskMonitor monitor, MessageLog log) throws CancelledException, IOException {
 
 		try {
 
@@ -110,6 +122,11 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 				loadSegaSaturnHeader(provider, program, monitor, log);
 
 				loadFirstExecutable(provider, program, monitor, log);
+			}
+			else if(m_loadType == SATURN_MSS) {
+
+				loadMednafenSaveState(provider, program, monitor, log);
+
 			}
 			else if(m_loadType == SATURN_YSS) {
 
@@ -202,7 +219,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 		// 0x05FE0000 	0x05FEFFFF 	SCU Registers
 		// 0x05FF0000 	0x05FFFFFF 	Unknown Registers
 		// 0x06000000 	0x07FFFFFF 	Work RAM High
-		//
+		// 0xFFFFFE00 	0xFFFFFFFF	On Chip Registers
 
 		try {
 			// 0x00000000 - 0x000FFFFF: Boot ROM
@@ -280,13 +297,110 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 			// 0x05FF0000 	0x05FFFFFF 	Unknown Registers
 			createMemoryRegion("Unknown Registers", 0x05FF0000, 0x05FFFFFF, true, true, true, program, monitor, log);
 
-			// 0x06000000 - 0x07FFFFFF: Work RAM High
+			// 0x06000000 - 0x07FFFFFF Work RAM High
 			createMemoryRegion("Work RAM High", 0x06000000, 0x07FFFFFF, true, true, true, program, monitor, log);
+
+			// 0xFFFFFE00 	0xFFFFFFFF	On Chip Registers
+			// TODO: this worsens decompilation significantly. Error codes are replaced with data references to this region of memory
+			//createMemoryRegion("On Chip Registers", 0xFFFFFE00, 0xFFFFFFFF, true, true, true, program, monitor, log);
+			//labelOnchipRegisters(program, log);
 		}
 		catch(Exception e) {
 			log.appendException(e);
 		}
 	}
+
+	// label the onchip registers 0xFFFFFE00 - 0xFFFFFFFF
+	public long labelOnchipRegisters(Program program, MessageLog log) {
+
+		//
+		// Onchip registers taken from: https://github.com/Yabause/yabause/blob/master/yabause/src/sh2core.c
+		//
+
+		String name = "Onchip_";
+		Address onChipAddr = program.getAddressFactory().getDefaultAddressSpace().getAddress(0xFFFFFE00);
+		Address addr;
+
+		try {
+
+			program.getSymbolTable().createLabel(onChipAddr.add(0x000), name + "SMR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x001), name + "BRR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x002), name + "SCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x003), name + "TDR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x004), name + "SSR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x005), name + "RDR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x010), name + "TIER", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x011), name + "FTCSR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x012), name + "FTCSR.part.h", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x013), name + "FTCSR.part.L", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x014), name + "OCRA_OCRB_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x015), name + "OCRA_OCRB", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x016), name + "TCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x017), name + "TOCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x018), name + "FICR_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x019), name + "FICR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x060), name + "IPRB_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x062), name + "VCRA_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x063), name + "VCRA_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x064), name + "VCRB_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x065), name + "VCRB", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x066), name + "VCRC_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x067), name + "VCRC", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x068), name + "VCRD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x080), name + "WTCSR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x081), name + "WTCNT", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x092), name + "CCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x0E0), name + "ICR_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x0E1), name + "ICR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x0E2), name + "IPRA_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x0E3), name + "IPRA", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x0E4), name + "VCRWDT_high", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x0E5), name + "WCRWDT", null, SourceType.IMPORTED);
+
+			program.getSymbolTable().createLabel(onChipAddr.add(0x100), name + "DVSR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x120), name + "DVSR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x104), name + "DVDNTL", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x124), name + "DVDNTL", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x108), name + "DVCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x128), name + "DVCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x10C), name + "VCRDIV", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x12C), name + "VCRDIV", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0X110), name + "DVDNTH", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x130), name + "DVDNTH", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x114), name + "DVDNTL", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x134), name + "DVDNTL", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x118), name + "DVDNTUH", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x138), name + "DVDNTUH", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x11C), name + "DVDNTUL", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x13C), name + "DVDNTUL", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x180), name + "SAR0", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x184), name + "DAR0", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x188), name + "TCR0", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x18C), name + "CHCR0", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x190), name + "SAR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x194), name + "DAR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x198), name + "TCR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x19C), name + "CHCR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1A0), name + "VCRDMA0", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1A8), name + "VCRDMA1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1B0), name + "DMA0R", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1E0), name + "BCR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1E4), name + "BCR2", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1E8), name + "WCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1EC), name + "MCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1F0), name + "RTCSR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1F4), name + "RTCNT", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(onChipAddr.add(0x1F8), name + "RTCOR", null, SourceType.IMPORTED);
+		}
+		catch(Exception e) {
+			log.appendException(e);
+		}
+
+		// skip the next 5 registers to get to PR and PC
+		return 0;
+	}
+
+
 
 	// helper function to swap the endianess of a 32-bit value
 	public long swapLongEndianess(long val) {
@@ -540,7 +654,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 		return regionSize;
 	}
 
-		// create labels for the PC and PR registers
+	// create labels for the PC and PR registers
 	public long yssLabelSH2Regs(String regionName, long regionAddress, ByteProvider provider, long startPos, Program program, TaskMonitor monitor, MessageLog log) {
 
 		//
@@ -607,6 +721,20 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 			currPos += YSS_REG_SIZE;
 			addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(PC);
 			program.getSymbolTable().createLabel(addr, regionName + "_PC", null, SourceType.IMPORTED);
+
+			// save off the master and slave SH2 registers
+			if(regionName == "MSH2")
+			{
+				MSH2_PC = PC;
+				MSH2_PR = PR;
+				MSH2_R15 = R15;
+			}
+			else
+			{
+				SSH2_PC = PC;
+				SSH2_PR = PR;
+				SSH2_R15 = R15;
+			}
 		}
 		catch(Exception e) {
 			log.appendException(e);
@@ -772,6 +900,482 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 			// low work ram
 			readYSSRegion(0x00200000, 0x100000, true, provider, currPos, program, monitor, log);
 			currPos += 0x100000;
+		}
+		catch(Exception e) {
+			log.appendException(e);
+		}
+	}
+
+	//
+	// Mednafen Save State (MSS) loading functions
+	//
+
+	public boolean isMednafenSaveState(ByteProvider provider) throws IOException{
+
+		// Mednafen Save States start with this signature
+		String signature = "MDFNSVST";
+
+		if(provider.length() >= signature.length()) {
+
+			byte sig[] = provider.readBytes(0, signature.length());
+			if(Arrays.equals(sig, signature.getBytes())) {
+
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// find all sections in the save state file and add them to mssSectionMap
+	public int mssMakeSectionMap(ByteProvider provider, long currPos, long totalLen, Program program, TaskMonitor monitor, MessageLog log) {
+
+		/* The Mednafen save state has the following sections:
+			MDFNDRIVE_00000000
+			MDFNRINP
+			BIOS_HASH
+			SH2-M
+			SH2-S
+			SCU
+			SMPC
+			SMPC_P0_Gamepad
+			SMPC_P1_Gamepad
+			CDB
+			VDP1
+			VDP2
+			VDP2REND
+			SOUND
+			M68K
+			SCSP
+			CART_BACKUP
+			MAIN
+		*/
+
+		final int MSS_SIZE_OF_SECTION_TAG = 0x20;
+		final int MSS_SIZE_OF_SECTION_SIZE = 0x4;
+		final int MSS_MAX_SECTIONS = 0x14;
+
+		int regionSize = 0;
+		int i = 0;
+
+		try {
+
+			mssSectionMap = new HashMap<String, Long>();
+
+			BinaryReader reader = new BinaryReader(provider, true);
+
+			while(true)
+			{
+				// 32-byte tag
+				byte tag[] = provider.readBytes(currPos, MSS_SIZE_OF_SECTION_TAG);
+				String tagString = new String(tag);
+				tagString = tagString.replaceAll("\u0000.*", ""); // remove trailing NULLs
+
+				// record the postion of the section
+				mssSectionMap.put(tagString, currPos);
+
+				currPos += MSS_SIZE_OF_SECTION_TAG;
+
+				regionSize = reader.readInt(currPos);
+				currPos += MSS_SIZE_OF_SECTION_SIZE;
+
+				currPos += regionSize;
+
+				if(currPos == 0 || currPos >= totalLen)
+				{
+					break;
+				}
+
+				i++;
+
+				if(i > MSS_MAX_SECTIONS)
+				{
+					throw new IOException("Too many sections big!!");
+				}
+			}
+		}
+		catch(Exception e) {
+			log.appendException(e);
+			return -1;
+		}
+
+		return 0;
+	}
+
+	// create labels for the PC, PR, and R15 registers
+	public long mssLabelSH2Regs(String regionName, ByteProvider provider, long startPos, Program program, TaskMonitor monitor, MessageLog log) {
+
+		//
+		// Each Mednafen Save State (MSS) section starts with:
+		//
+		// - 32 section tag
+		// - 4 byte length
+		// - variable number of data fields that consist of:
+		// -- one byte data name length
+		// -- varible length data name
+		// -- 4 byte data length field
+		// -- variable length data
+		//
+
+		final int MSS_SIZE_OF_SECTION_TAG = 32;
+		final int MSS_SIZE_OF_SECTION_SIZE = 4;
+		final int MSS_MAX_VARIABLES = 100;
+
+		long currPos = startPos;
+		long sectionSize = 0;
+		long endPos = 0;
+		int i = 0;
+
+		long PC = 0;
+		long PR = 0;
+		long R15 = 0;
+		Address addr;
+
+		boolean foundPC = false;
+		boolean foundPR = false;
+		boolean foundR15 = false;
+
+		String labelRegionName;
+
+		try {
+
+			BinaryReader reader = new BinaryReader(provider, true);
+
+			byte tag[] = provider.readBytes(currPos, MSS_SIZE_OF_SECTION_TAG);
+			String tagString = new String(tag);
+			tagString = tagString.replaceAll("\u0000.*", ""); // remove trailing NULLs
+
+			if(!tagString.equals(regionName)){
+				throw new IOException("Invalid MSS tag name!!");
+			}
+
+			// skip pass the tag
+			currPos += MSS_SIZE_OF_SECTION_TAG;
+
+			// read the section size
+			sectionSize = reader.readInt(currPos);
+			currPos += MSS_SIZE_OF_SECTION_SIZE;
+
+			// compute the end size
+			endPos = currPos + sectionSize;
+
+			// parse the variables in the section
+			// -- one byte data name length
+			// -- varible length data name
+			// -- 4 byte data length field
+			// -- variable length data
+			while(true)
+			{
+				long varNameLen;
+				long dataLen;
+
+				// variable name length
+				varNameLen = reader.readByte(currPos);
+				currPos += 1;
+
+				// variable name
+				byte varName[] = provider.readBytes(currPos, varNameLen);
+
+				String varString = new String(varName);
+				varString = varString.replaceAll("\u0000.*", ""); // remove trailing NULLs
+				currPos += varNameLen;
+
+				// data length
+				dataLen = reader.readInt(currPos);
+				currPos += 4;
+
+				// look for the PC, PR, and R15 registers
+				// currPos points to the data section of the variable
+				if(varString.equals("PC"))
+				{
+					// PC variable only contains 4 bytes of data that is the PC reg
+					PC = reader.readInt(currPos);
+					foundPC = true;
+				}
+				else if(varString.equals("R"))
+				{
+					// R variable contains 64 bytes of data that is r0-r15
+					// we only want r15
+					R15 = reader.readInt(currPos + 60);
+					foundR15 = true;
+				}
+				else if(varString.equals("CtrlRegs"))
+				{
+					// CtrlRegs variable contains three regs
+					// we only want PR, the 3rd register
+					PR = reader.readInt(currPos + 8);
+					foundPR = true;
+				}
+
+				// data
+				currPos += dataLen;
+
+				if(foundPC == true && foundPR == true && foundR15 == true)
+				{
+					// found all the registers, fast exit
+					break;
+				}
+
+				if(currPos == 0 || currPos >= endPos)
+				{
+					break;
+				}
+
+				i++;
+
+				if(i > MSS_MAX_VARIABLES)
+				{
+					throw new IOException("Too many MSS sections!");
+				}
+			}
+
+			// save off the master and slave SH2 registers
+			if(regionName == "SH2-M")
+			{
+				labelRegionName = "MSH2";
+				MSH2_PC = PC;
+				MSH2_PR = PR;
+				MSH2_R15 = R15;
+			}
+			else
+			{
+				labelRegionName = "SSH2";
+				SSH2_PC = PC;
+				SSH2_PR = PR;
+				SSH2_R15 = R15;
+			}
+
+			// create the labels
+			addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(R15);
+			program.getSymbolTable().createLabel(addr, labelRegionName + "_R15", null, SourceType.IMPORTED);
+
+			addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(PR);
+			program.getSymbolTable().createLabel(addr, labelRegionName + "_PR", null, SourceType.IMPORTED);
+
+			addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(PC);
+			program.getSymbolTable().createLabel(addr, labelRegionName + "_PC", null, SourceType.IMPORTED);
+		}
+		catch(Exception e) {
+			log.appendException(e);
+			return -1;
+		}
+
+		return 0;
+	}
+
+	// reads a region of memory from the MSS save state and appends it to the Ghidra DB
+	public long readMSSRegions(String regionName, ByteProvider provider, long startPos, Program program, TaskMonitor monitor, MessageLog log) {
+
+		//
+		// Each Mednafen Save State (MSS) section starts with:
+		//
+		// - 32 section tag
+		// - 4 byte length
+		// - variable number of data fields that consist of:
+		// -- one byte data name length
+		// -- varible length data name
+		// -- 4 byte data length field
+		// -- variable length data
+		//
+
+		final int MSS_SIZE_OF_SECTION_TAG = 32;
+		final int MSS_SIZE_OF_SECTION_SIZE = 4;
+		final int MSS_MAX_VARIABLES = 100;
+
+		long currPos = startPos;
+		long sectionSize = 0;
+		long endPos = 0;
+		int i = 0;
+
+		boolean foundRamH = false;
+		boolean foundRamL = false;
+		boolean foundBackupRam = false;
+
+		String labelRegionName;
+
+		try {
+
+			BinaryReader reader = new BinaryReader(provider, true);
+
+			byte tag[] = provider.readBytes(currPos, MSS_SIZE_OF_SECTION_TAG);
+			String tagString = new String(tag);
+			tagString = tagString.replaceAll("\u0000.*", ""); // remove trailing NULLs
+
+			if(!tagString.equals(regionName)){
+				throw new IOException("Invalid MSS tag name!!");
+			}
+
+			// skip pass the tag
+			currPos += MSS_SIZE_OF_SECTION_TAG;
+
+			// read the section size
+			sectionSize = reader.readInt(currPos);
+			currPos += MSS_SIZE_OF_SECTION_SIZE;
+
+			// compute the end size
+			endPos = currPos + sectionSize;
+
+			// parse the variables in the section
+			// -- one byte data name length
+			// -- varible length data name
+			// -- 4 byte data length field
+			// -- variable length data
+			while(true)
+			{
+				long varNameLen;
+				long dataLen;
+
+				// variable name length
+				varNameLen = reader.readByte(currPos);
+				currPos += 1;
+
+				// variable name
+				byte varName[] = provider.readBytes(currPos, varNameLen);
+
+				String varString = new String(varName);
+				varString = varString.replaceAll("\u0000.*", ""); // remove trailing NULLs
+				currPos += varNameLen;
+
+				// data length
+				dataLen = reader.readInt(currPos);
+				currPos += 4;
+
+				// look for the PC, PR, and R15 registers
+				// currPos points to the data section of the variable
+				if(varString.equals("WorkRAML"))
+				{
+					// low work ram
+					readYSSRegion(0x00200000, 0x100000, true, provider, currPos, program, monitor, log);
+					foundRamL = true;
+				}
+				else if(varString.equals("WorkRAMH"))
+				{
+					// high work ram
+					readYSSRegion(0x06000000, 0x100000, true, provider, currPos, program, monitor, log);
+					foundRamH = true;
+				}
+				else if(varString.equals("BackupRAM"))
+				{
+					// TODO: this isn't quite correct. Why is Yabause reading twice as much as Mednafen??
+					readYSSRegion(0x00180000, 0x8000, false, provider, currPos, program, monitor, log);
+					foundBackupRam = true;
+				}
+
+				// data
+				currPos += dataLen;
+
+				if(foundRamL == true && foundRamH == true && foundBackupRam == true)
+				{
+					// found all the registers, fast exit
+					break;
+				}
+
+				if(currPos == 0 || currPos >= endPos)
+				{
+					break;
+				}
+
+				i++;
+
+				if(i > MSS_MAX_VARIABLES)
+				{
+					throw new IOException("Too many MSS sections!");
+				}
+			}
+		}
+		catch(Exception e) {
+			log.appendException(e);
+			return -1;
+		}
+
+		return 0;
+	}
+
+	// loads an ungzipped Mednafen save state
+	public void loadMednafenSaveState(ByteProvider provider, Program program, TaskMonitor monitor, MessageLog log) {
+
+		//
+		// The Mednafen Save State (MSS) is documented in MDFNSS_LoadSM in src/state.cpp
+		//
+		// The file format starts with:
+		// - 16 byte magic
+		// - 16 bytes of fields
+		// - variable length preview data
+		// - variable length array of sections
+		//
+
+		final int MAGIC_SIZE = 16;
+
+		long stateVersion = 0;
+		long totalLen = 0;
+		long svbe = 0;
+		long width = 0;
+		long height = 0;
+		long previewLen = 0;
+		long regionSize = 0;
+
+		int result = 0;
+
+		try {
+
+			BinaryReader reader = new BinaryReader(provider, true);
+
+			long currPos = 0;
+			long version = 0;
+			int headerSize = 0;
+
+			//
+			// parse the MSS file header
+			//
+
+			// we already checked the signature earlier, no need to check it again
+			currPos += MAGIC_SIZE;
+
+			stateVersion = reader.readInt(currPos);
+			currPos += 4;
+
+			totalLen = reader.readInt(currPos);
+			svbe = totalLen & 0x80000000;
+			totalLen = totalLen & 0x7FFFFFFF;
+			currPos += 4;
+
+			width = reader.readInt(currPos);
+			currPos += 4;
+
+			height = reader.readInt(currPos);
+			currPos += 4;
+
+			// skip past the previewLen
+			previewLen = height * width * 3;
+			currPos += previewLen;
+
+			//
+			// currPos should now point to a variable array of sections
+			//
+
+			// get the position of all sections
+			result = mssMakeSectionMap(provider, currPos, totalLen, program, monitor, log);
+			if(result != 0)
+			{
+				throw new IOException("Failed to parse MSS sections!");
+			}
+
+			// parse out the Master SH-2 registers
+			if(mssSectionMap.containsKey("SH2-M") == false)
+			{
+				throw new IOException("MSS missing SH2-M section!");
+			}
+			mssLabelSH2Regs("SH2-M", provider, mssSectionMap.get("SH2-M"), program, monitor, log);
+
+			// parse out the Slave SH-2 registers
+			if(mssSectionMap.containsKey("SH2-S") == false)
+			{
+				throw new IOException("MSS missing SH2-S section!");
+			}
+			mssLabelSH2Regs("SH2-S", provider, mssSectionMap.get("SH2-S"), program, monitor, log);
+
+			// load the memory regions
+			readMSSRegions("MAIN", provider, mssSectionMap.get("MAIN"), program, monitor, log);
 		}
 		catch(Exception e) {
 			log.appendException(e);
