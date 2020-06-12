@@ -2,6 +2,7 @@
 
 A (WIP) Ghidra loader for the Sega Saturn. Currently supports:
 - ISO disc images
+- Mednafen Save States (MC)
 - Yabause Save States (YSS)
 
 Grab from [Releases](https://github.com/VGKintsugi/Ghidra-SegaSaturn-Loader/releases/) or build from source.
@@ -22,6 +23,12 @@ Disassembly View w/Decompiler
 - Pros: Easy to use, useful for debugging game initialization, works great on Saturn homewbrew
 - Cons: Doesn't load any file after the first file on disc
 
+### Mednafen Save States (MC)
+- gunzip the Mednafen save state
+- Select the unzipped file in Ghidra
+- The loader will load backup cart memory, high work RAM, and low work RAM to the correct places
+- The loader will add labels for SH-2s PC, PR, and R15 registers
+
 ### Yabause Save States (YSS)
 - Select any Yabause Save State (YSS)
 - The loader will load backup cart memory, high work RAM, and low work RAM to the correct places
@@ -34,7 +41,9 @@ Disassembly View w/Decompiler
 ## Issues
 - Code quality needs serious improvement and refactoring
 - Memory map doesn't handle mirrored regions
+- Adding the onchip register region (0xffffffe00-0xffffffff) to the memory map made decompilation worse. So it's disabled. 
 - It would be useful to label some globals to assist reversing
+- Mednafen memory cart data doesn't match Yabause's. 
 
 ## Building
 - ``gradle -PGHDIRA_INSTALL_DIR=<Absolute path to Ghidra>``
