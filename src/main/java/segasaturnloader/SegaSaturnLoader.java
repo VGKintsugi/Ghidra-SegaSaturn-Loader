@@ -180,6 +180,21 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 			block.setRead(read);
 			block.setWrite(write);
 			block.setExecute(execute);
+			
+			// create a cached region
+			if((startAddress & 0x20000000) == 0)
+			{
+				Address cacheAddr;
+
+				cacheAddr = program.getAddressFactory().getDefaultAddressSpace().getAddress(startAddress | 0x20000000);
+
+				block = program.getMemory().createByteMappedBlock​(regionName + " Cache", cacheAddr, addr, endAddress-startAddress);
+				block.setRead(read);
+				block.setWrite(write);
+				block.setExecute(execute);
+			}
+
+
 		}
 		catch(Exception e) {
 			log.appendException(e);
@@ -302,12 +317,50 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 			// 0xFFFFFE00 	0xFFFFFFFF	On Chip Registers
 			// TODO: this worsens decompilation significantly. Error codes are replaced with data references to this region of memory
-			//createMemoryRegion("On Chip Registers", 0xFFFFFE00, 0xFFFFFFFF, true, true, true, program, monitor, log);
-			//labelOnchipRegisters(program, log);
+			createMemoryRegion("On Chip Registers", 0xFFFFFE00, 0xFFFFFFFF, true, true, true, program, monitor, log);
+
+			labelCDRegisters(program, log);
+			labelOnchipRegisters(program, log);
+			labelSCURegisters(program, log);
+			labelSMPCRegisters(program, log);
+			labelVDP1Registers(program, log);
+			labelVDP2Registers(program, log);
 		}
 		catch(Exception e) {
 			log.appendException(e);
 		}
+	}
+
+	//
+	// Memory-Mapped Registers
+	//
+
+	// label the SMPC registers
+	public long labelCDRegisters(Program program, MessageLog log) {
+
+		//
+		// CD registers taken from: https://wiki.yabause.org/index.php5?title=CDBlock
+		//
+
+		final int CD_BASE = 0x20100000;
+
+		String name = "CD_";
+		Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(CD_BASE);
+
+		try {
+			program.getSymbolTable().createLabel(addr.add(0x08), name + "HIRQ", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0C), name + "HIRQ_MASK", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x18), name + "CR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x1C), name + "CR2", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x20), name + "CR3", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x24), name + "CR4", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x28), name + "MPEGRGB", null, SourceType.IMPORTED);
+		}
+		catch(Exception e) {
+			log.appendException(e);
+		}
+
+		return 0;
 	}
 
 	// label the onchip registers 0xFFFFFE00 - 0xFFFFFFFF
@@ -322,7 +375,6 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 		Address addr;
 
 		try {
-
 			program.getSymbolTable().createLabel(onChipAddr.add(0x000), name + "SMR", null, SourceType.IMPORTED);
 			program.getSymbolTable().createLabel(onChipAddr.add(0x001), name + "BRR", null, SourceType.IMPORTED);
 			program.getSymbolTable().createLabel(onChipAddr.add(0x002), name + "SCR", null, SourceType.IMPORTED);
@@ -356,7 +408,6 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 			program.getSymbolTable().createLabel(onChipAddr.add(0x0E3), name + "IPRA", null, SourceType.IMPORTED);
 			program.getSymbolTable().createLabel(onChipAddr.add(0x0E4), name + "VCRWDT_high", null, SourceType.IMPORTED);
 			program.getSymbolTable().createLabel(onChipAddr.add(0x0E5), name + "WCRWDT", null, SourceType.IMPORTED);
-
 			program.getSymbolTable().createLabel(onChipAddr.add(0x100), name + "DVSR", null, SourceType.IMPORTED);
 			program.getSymbolTable().createLabel(onChipAddr.add(0x120), name + "DVSR", null, SourceType.IMPORTED);
 			program.getSymbolTable().createLabel(onChipAddr.add(0x104), name + "DVDNTL", null, SourceType.IMPORTED);
@@ -396,11 +447,184 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 			log.appendException(e);
 		}
 
-		// skip the next 5 registers to get to PR and PC
 		return 0;
 	}
 
+	// label the SCU registers
+	public long labelSCURegisters(Program program, MessageLog log) {
 
+		//
+		// SCU registers taken from: https://github.com/ijacquez/libyaul/blob/develop/libyaul/scu/scu/map.h
+		//
+
+		final int SCU_BASE = 0x25FE0000;
+
+		String name = "SCU_";
+		Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(SCU_BASE);
+
+		try {
+			program.getSymbolTable().createLabel(addr.add(0x0000), name + "D0R", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0004), name + "D0W", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0008), name + "D0C", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x000C), name + "D0AD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0010), name + "D0EN", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0014), name + "D0MD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0020), name + "D1R", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0024), name + "D1W", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0028), name + "D1C", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x002C), name + "D1AD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0030), name + "D1EN", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0034), name + "D1MD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0040), name + "D2R", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0044), name + "D2W", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0048), name + "D2C", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x004C), name + "D2AD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0050), name + "D2EN", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0054), name + "D2MD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0060), name + "DSTP", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x007C), name + "DSTA", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0080), name + "PPAF", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0084), name + "PPD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0088), name + "PDA", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x008C), name + "PDD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0090), name + "T0C", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0094), name + "T1S", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0098), name + "T1MD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00A0), name + "IMS", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00A4), name + "IST", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00A8), name + "AIACK", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00B0), name + "ASR0", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00B4), name + "ASR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00B8), name + "AREF", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00C4), name + "RSEL", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00C8), name + "VER", null, SourceType.IMPORTED);
+		}
+		catch(Exception e) {
+			log.appendException(e);
+		}
+
+		return 0;
+	}
+
+	// label the SMPC registers
+	public long labelSMPCRegisters(Program program, MessageLog log) {
+
+		//
+		// SMPC registers taken from: https://github.com/ijacquez/libyaul/scu/bus/cpu/smpc/smpc/map.h
+		//
+
+		final int SMPC_BASE = 0x20100000;
+
+		String name = "SMPC_";
+		Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(SMPC_BASE);
+
+		try {
+			program.getSymbolTable().createLabel(addr.add(0x01F), name + "COMREG", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x061), name + "SR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x063), name + "SF", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x075), name + "PDR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x077), name + "PDR2", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x079), name + "DDR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x07B), name + "DDR2", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x07D), name + "IOSEL1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x07D), name + "IOSEL2", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x07F), name + "EXLE1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x07F), name + "EXLE2", null, SourceType.IMPORTED);
+		}
+		catch(Exception e) {
+			log.appendException(e);
+		}
+
+		return 0;
+	}
+
+	// label the VDP1 registers
+	public long labelVDP1Registers(Program program, MessageLog log) {
+
+		//
+		// VDP1 registers taken from: https://github.com/ijacquez/libyaulscu/bus/b/vdp/vdp1/map.h
+		//
+
+		final int VDP1_BASE = 0x25D00000;
+
+		String name = "VDP1_";
+		Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(VDP1_BASE);
+
+		try {
+			program.getSymbolTable().createLabel(addr.add(0x0000), name + "TVMR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0002), name + "FBCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0004), name + "PTMR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0006), name + "EWDR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0008), name + "EWLR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x000A), name + "EWRR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x000C), name + "ENDR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0010), name + "EDSR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0012), name + "LOPR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0014), name + "COPR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0016), name + "MODR", null, SourceType.IMPORTED);
+		}
+		catch(Exception e) {
+			log.appendException(e);
+		}
+
+		return 0;
+	}
+
+	// label the VDP2 registers
+	public long labelVDP2Registers(Program program, MessageLog log) {
+
+		//
+		// VDP2 registers taken from: https://github.com/ijacquez/libyaul/scu/bus/b/vdp/vdp2/map.h
+		//
+
+		final int VDP2_BASE = 0x25F80000;
+
+		String name = "VDP2_";
+		Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(VDP2_BASE);
+
+		try {
+			program.getSymbolTable().createLabel(addr.add(0x0000), name + "D0R", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0004), name + "D0W", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0008), name + "D0C", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x000C), name + "D0AD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0010), name + "D0EN", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0014), name + "D0MD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0020), name + "D1R", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0024), name + "D1W", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0028), name + "D1C", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x002C), name + "D1AD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0030), name + "D1EN", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0034), name + "D1MD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0040), name + "D2R", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0044), name + "D2W", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0048), name + "D2C", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x004C), name + "D2AD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0050), name + "D2EN", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0054), name + "D2MD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0060), name + "DSTP", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x007C), name + "DSTA", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0080), name + "PPAF", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0084), name + "PPD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0088), name + "PDA", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x008C), name + "PDD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0090), name + "T0C", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0094), name + "T1S", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0098), name + "T1MD", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00A0), name + "IMS", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00A4), name + "IST", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00A8), name + "AIACK", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00B0), name + "ASR0", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00B4), name + "ASR1", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00B8), name + "AREF", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00C4), name + "RSEL", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x00C8), name + "VER", null, SourceType.IMPORTED);
+		}
+		catch(Exception e) {
+			log.appendException(e);
+		}
+
+		return 0;
+	}
 
 	// helper function to swap the endianess of a 32-bit value
 	public long swapLongEndianess(long val) {
