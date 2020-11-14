@@ -175,6 +175,9 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 			Address addr;
 			MemoryBlock block;
 
+			// Ghidra 9.2 no longer allows spaces in region names
+			regionName = regionName.replaceAll("\\s+","_");
+
 			addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(startAddress);
 			block = program.getMemory().createInitializedBlock(regionName, addr, endAddress-startAddress, (byte)0x00, monitor, false);
 			block.setRead(read);
@@ -188,13 +191,11 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 				cacheAddr = program.getAddressFactory().getDefaultAddressSpace().getAddress(startAddress | 0x20000000);
 
-				block = program.getMemory().createByteMappedBlock​(regionName + " Cache", cacheAddr, addr, endAddress-startAddress);
+				block = program.getMemory().createByteMappedBlock​(regionName + "_Cache", cacheAddr, addr, endAddress-startAddress, false);
 				block.setRead(read);
 				block.setWrite(write);
 				block.setExecute(execute);
 			}
-
-
 		}
 		catch(Exception e) {
 			log.appendException(e);
@@ -286,7 +287,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 			createMemoryRegion("VDP1 VRAM", 0x05C00000, 0x05C7FFFF, true, true, true, program, monitor, log);
 
 			// 0x05C80000 	0x05CFFFFF 	VDP1 Framebuffer
-			createMemoryRegion("Work RAM Low", 0x05C80000, 0x05CFFFFF, true, true, true, program, monitor, log);
+			createMemoryRegion("VDP1 Framebuffer", 0x05C80000, 0x05CFFFFF, true, true, true, program, monitor, log);
 
 			// 0x05D00000 	0x05D7FFFF 	VDP1 Registers
 			createMemoryRegion("VDP1 Registers", 0x05D00000, 0x05D7FFFF, true, true, true, program, monitor, log);
