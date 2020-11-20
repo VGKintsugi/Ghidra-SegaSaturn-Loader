@@ -343,7 +343,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 		// CD registers taken from: https://wiki.yabause.org/index.php5?title=CDBlock
 		//
 
-		final int CD_BASE = 0x20100000;
+		final int CD_BASE = 0x25890000;
 
 		String name = "CD_";
 		Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(CD_BASE);
