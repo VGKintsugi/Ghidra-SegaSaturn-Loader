@@ -46,7 +46,7 @@ Disassembly View w/Decompiler
 - Mednafen memory cart data doesn't match Yabause's. 
 
 ## Building
-- ``gradle -PGHDIRA_INSTALL_DIR=<Absolute path to Ghidra>``
+- ``gradle -PGHIDRA_INSTALL_DIR=<Absolute path to Ghidra>``
 - The output zip file will be created within `/dist`
 
 ## Installation
