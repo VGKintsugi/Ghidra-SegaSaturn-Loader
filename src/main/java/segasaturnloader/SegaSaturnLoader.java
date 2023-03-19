@@ -17,6 +17,7 @@ package segasaturnloader;
 
 import java.io.IOException;
 import java.util.*;
+import generic.jar.ResourceFile;
 
 import ghidra.app.util.Option;
 import ghidra.app.util.bin.ByteProvider;
@@ -28,13 +29,30 @@ import ghidra.framework.model.DomainObject;
 import ghidra.program.model.listing.Program;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
+import ghidra.program.flatapi.FlatProgramAPI;
+import ghidra.framework.Application;
 
+
+import ghidra.program.model.listing.Function;
+import ghidra.program.model.data.CategoryPath;
+import ghidra.program.model.data.DataTypeManager;
+import ghidra.program.model.data.DataType;
+import ghidra.program.model.data.FileDataTypeManager;
+import ghidra.program.model.data.PointerDataType;
+import ghidra.program.model.data.DWordDataType;
+import ghidra.program.model.data.VoidDataType;
+import ghidra.program.model.data.UnsignedShortDataType;
+import ghidra.program.model.data.UnsignedCharDataType;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.lang.LanguageCompilerSpecPair;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressSet;
 import ghidra.program.model.mem.MemoryBlock;
+import ghidra.program.model.listing.ParameterImpl;
+import ghidra.program.model.listing.ReturnParameterImpl;
 import ghidra.app.util.bin.BinaryReader;
+import ghidra.program.model.listing.Function.FunctionUpdateType;
+
 
 /**
 * TODO: Provide class-level documentation that describes what this loader does.
@@ -71,6 +89,9 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 	// hashmap of all sections in the Mednafen Save State
 	HashMap<String, Long> mssSectionMap;
+
+	// types from /Data/bios.gdt
+	DataTypeManager biosDataTypeManager;
 
 	//
 	// Ghidra loader required functions
@@ -115,6 +136,9 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 		try {
 
+			// load bios data types
+			biosDataTypeManager = loadBiosDataTypeManager();
+
 			createSegaSaturnMemoryMap(program, monitor, log);
 
 			if(m_loadType == SATURN_ISO) {
@@ -136,6 +160,12 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 				throw new IOException("Invalid Saturn loader type!!");
 			}
+
+			// needs to after bytes are loaded to the program
+			labelBackupFunctions(program, log);
+
+			// success
+			log.appendMsg("This\n  is\n  COOL");
 
 		}catch(Exception e) {
 			log.appendException(e);
@@ -162,6 +192,14 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 		//return super.validateoptions(provider, loadSpec, options);
 		return null;
+	}
+
+	public DataTypeManager loadBiosDataTypeManager() throws IOException {
+
+		ResourceFile biosArchiveFile = Application.getModuleDataFile("ghidra-segasaturn-loader", "bios.gdt");
+		FileDataTypeManager fileDtm = FileDataTypeManager.openFileArchive(biosArchiveFile, false);
+
+		return fileDtm;
 	}
 
 	//
@@ -539,30 +577,144 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 		return 0;
 	}
 
-	// label the VDP1 registers
-	public long labelVDP1Registers(Program program, MessageLog log) {
+	// label the backup functions
+	public long labelBackupFunctions(Program program, MessageLog log) {
 
 		//
-		// VDP1 registers taken from: https://github.com/ijacquez/libyaulscu/bus/b/vdp/vdp1/map.h
+		// Definitions taken from: https://segaxtreme.net/threads/decompilation-of-backup-library.25353/
 		//
 
-		final int VDP1_BASE = 0x25D00000;
+		final Address DIVIDE_BY_ZERO_STATUS_ADDR = program.getAddressFactory().getDefaultAddressSpace().getAddress(0x06000350);
+		final Address FUNCTION_POINTERS_ADDR = program.getAddressFactory().getDefaultAddressSpace().getAddress(0x06000354);
+		final Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(0);
+		AddressSet addrSet;
+		Function func;
+		ReturnParameterImpl returnParam;
+		ParameterImpl param1;
+		ParameterImpl param2;
+		ParameterImpl param3;
+		ParameterImpl param4;
 
-		String name = "VDP1_";
-		Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(VDP1_BASE);
+		// enums
+		DataType BUP_ERROR = biosDataTypeManager.getDataType​(new CategoryPath("/backup/enums"), "BUP_ERROR");
+		DataType BACKUP_DEVICE = biosDataTypeManager.getDataType​(new CategoryPath("/backup/enums"), "BACKUP_DEVICE");
+		DataType BACKUP_OVERWRITE_MODE = biosDataTypeManager.getDataType​(new CategoryPath("/backup/enums"), "BACKUP_OVERWRITE_MODE");
+		DataType SEARCH_MODE = biosDataTypeManager.getDataType​(new CategoryPath("/backup/enums"), "SEARCH_MODE");
+
+		// structs
+		DataType backup_config = biosDataTypeManager.getDataType​(new CategoryPath("/backup/structs"), "backup_config");
+		DataType backup_file = biosDataTypeManager.getDataType​(new CategoryPath("/backup/structs"), "backup_file");
+		DataType backup_stat = biosDataTypeManager.getDataType​(new CategoryPath("/backup/structs"), "backup_stat");
+		DataType backup_date = biosDataTypeManager.getDataType​(new CategoryPath("/backup/structs"), "backup_date");
+
+
+		String name = "BUP_";
 
 		try {
-			program.getSymbolTable().createLabel(addr.add(0x0000), name + "TVMR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x0002), name + "FBCR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x0004), name + "PTMR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x0006), name + "EWDR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x0008), name + "EWLR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x000A), name + "EWRR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x000C), name + "ENDR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x0010), name + "EDSR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x0012), name + "LOPR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x0014), name + "COPR", null, SourceType.IMPORTED);
-			program.getSymbolTable().createLabel(addr.add(0x0016), name + "MODR", null, SourceType.IMPORTED);
+
+			// this address has the status of divide by zero errors
+			program.getSymbolTable().createLabel(DIVIDE_BY_ZERO_STATUS_ADDR, name + "DIVIDE_BY_ZERO_STATUS", null, SourceType.IMPORTED);
+			program.getListing().createData(DIVIDE_BY_ZERO_STATUS_ADDR, DWordDataType.dataType, 4);
+
+			// 0x0600354 has a pointer to the backup functions if they are loaded and inited
+			program.getListing().createData(FUNCTION_POINTERS_ADDR, PointerDataType.dataType, 4);
+
+			Address backup_functions = addr.add(program.getMemory().getInt(FUNCTION_POINTERS_ADDR));
+			if(backup_functions.getOffset() == 0)
+			{
+				log.appendMsg("Backup library not loaded." + backup_functions.toString());
+				return 0;
+			}
+
+			// now create functions for each of the backup routines
+			program.getSymbolTable().createLabel(backup_functions, name + "FUNCTION_POINTERS", null, SourceType.IMPORTED);
+			for (int i = 0; i < 11; i++)
+			{
+				program.getListing().createData(backup_functions.add(i*4), PointerDataType.dataType, 4);
+			}
+
+			//function prototypes
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(0))));
+			func = program.getFunctionManager().createFunction("Init", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(VoidDataType.dataType, program);
+			param1 = new ParameterImpl("metadata", new PointerDataType(VoidDataType.dataType), program);
+			param2 = new ParameterImpl("conifg", new PointerDataType(backup_config), program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(4))));
+			func = program.getFunctionManager().createFunction(name + "SelPart", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(BUP_ERROR, program);
+			param1 = new ParameterImpl("device", BACKUP_DEVICE, program);
+			param2 = new ParameterImpl("partition_number", UnsignedShortDataType.dataType, program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(8))));
+			func = program.getFunctionManager().createFunction(name + "Format", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(BUP_ERROR, program);
+			param1 = new ParameterImpl("device", BACKUP_DEVICE, program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(12))));
+			func = program.getFunctionManager().createFunction(name + "Stat", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(BUP_ERROR, program);
+			param1 = new ParameterImpl("device", BACKUP_DEVICE, program);
+			param2 = new ParameterImpl("data_size", DWordDataType.dataType, program);
+			param3 = new ParameterImpl("output_stat", new PointerDataType(backup_stat), program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2, param3);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(16))));
+			func = program.getFunctionManager().createFunction(name + "Write", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(BUP_ERROR, program);
+			param1 = new ParameterImpl("device", BACKUP_DEVICE, program);
+			param2 = new ParameterImpl("file", new PointerDataType(backup_file), program);
+			param3 = new ParameterImpl("data", new PointerDataType(UnsignedCharDataType.dataType), program);
+			param4 = new ParameterImpl("overwrite_mode", BACKUP_OVERWRITE_MODE, program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2, param3, param4);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(20))));
+			func = program.getFunctionManager().createFunction(name + "Read", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(BUP_ERROR, program);
+			param1 = new ParameterImpl("device", BACKUP_DEVICE, program);
+			param2 = new ParameterImpl("filename", new PointerDataType(UnsignedCharDataType.dataType), program);
+			param3 = new ParameterImpl("output_data", new PointerDataType(UnsignedCharDataType.dataType), program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2, param3);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(24))));
+			func = program.getFunctionManager().createFunction(name + "Delete", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(BUP_ERROR, program);
+			param1 = new ParameterImpl("device", BACKUP_DEVICE, program);
+			param2 = new ParameterImpl("filename", new PointerDataType(UnsignedCharDataType.dataType), program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(28))));
+			func = program.getFunctionManager().createFunction(name + "Dir", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(BUP_ERROR, program);
+			param1 = new ParameterImpl("device", BACKUP_DEVICE, program);
+			param2 = new ParameterImpl("filename", new PointerDataType(UnsignedCharDataType.dataType), program);
+			param3 = new ParameterImpl("data_size", DWordDataType.dataType, program);
+			param4 = new ParameterImpl("file_metadata", new PointerDataType(backup_file), program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2, param3, param4);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(32))));
+			func = program.getFunctionManager().createFunction(name + "Verify", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(BUP_ERROR, program);
+			param1 = new ParameterImpl("device", BACKUP_DEVICE, program);
+			param2 = new ParameterImpl("filename", new PointerDataType(UnsignedCharDataType.dataType), program);
+			param3 = new ParameterImpl("data", new PointerDataType(UnsignedCharDataType.dataType), program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2, param3);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(36))));
+			func = program.getFunctionManager().createFunction(name + "GetDate", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(VoidDataType.dataType, program);
+			param1 = new ParameterImpl("minutes_since_1980", DWordDataType.dataType, program);
+			param2 = new ParameterImpl("date", new PointerDataType(backup_date), program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1, param2);
+
+			addrSet = new AddressSet(addr.add(program.getMemory().getInt(backup_functions.add(40))));
+			func = program.getFunctionManager().createFunction(name + "SetDate", addrSet.getMinAddress(), addrSet, SourceType.IMPORTED);
+			returnParam = new ReturnParameterImpl(DWordDataType.dataType, program);
+			param1 = new ParameterImpl("date", new PointerDataType(backup_date), program);
+			func.updateFunction(program.getCompilerSpec().getDefaultCallingConvention().getName(), returnParam,	FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.IMPORTED, param1);
 		}
 		catch(Exception e) {
 			log.appendException(e);
@@ -733,6 +885,39 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 		return 0;
 	}
+
+	// label the VDP1 registers
+	public long labelVDP1Registers(Program program, MessageLog log) {
+
+		//
+		// VDP1 registers taken from: https://github.com/ijacquez/libyaulscu/bus/b/vdp/vdp1/map.h
+		//
+
+		final int VDP1_BASE = 0x25D00000;
+
+		String name = "VDP1_";
+		Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(VDP1_BASE);
+
+		try {
+			program.getSymbolTable().createLabel(addr.add(0x0000), name + "TVMR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0002), name + "FBCR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0004), name + "PTMR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0006), name + "EWDR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0008), name + "EWLR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x000A), name + "EWRR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x000C), name + "ENDR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0010), name + "EDSR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0012), name + "LOPR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0014), name + "COPR", null, SourceType.IMPORTED);
+			program.getSymbolTable().createLabel(addr.add(0x0016), name + "MODR", null, SourceType.IMPORTED);
+		}
+		catch(Exception e) {
+			log.appendException(e);
+		}
+
+		return 0;
+	}
+
 
 	// helper function to swap the endianess of a 32-bit value
 	public long swapLongEndianess(long val) {
