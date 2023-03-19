@@ -196,7 +196,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 	public DataTypeManager loadBiosDataTypeManager() throws IOException {
 
-		ResourceFile biosArchiveFile = Application.getModuleDataFile("ghidra-segasaturn-loader", "bios.gdt");
+		ResourceFile biosArchiveFile = Application.getModuleDataFile("Ghidra-SegaSaturn-Loader", "bios.gdt");
 		FileDataTypeManager fileDtm = FileDataTypeManager.openFileArchive(biosArchiveFile, false);
 
 		return fileDtm;
