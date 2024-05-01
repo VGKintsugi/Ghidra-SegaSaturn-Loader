@@ -718,6 +718,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 		}
 		catch(Exception e) {
 			log.appendException(e);
+			log.appendMsg("Error labelling backup functions!!!");
 		}
 
 		return 0;
@@ -1447,6 +1448,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 	// find all sections in the save state file and add them to mssSectionMap
 	public int mssMakeSectionMap(ByteProvider provider, long currPos, long totalLen, Program program, TaskMonitor monitor, MessageLog log) {
 
+		// TODO: the list of sections has increased
 		/* The Mednafen save state has the following sections:
 			MDFNDRIVE_00000000
 			MDFNRINP
@@ -1507,7 +1509,7 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 				if(i > MSS_MAX_SECTIONS)
 				{
-					throw new IOException("Too many sections big!!");
+					//throw new IOException("Too many sections!!");
 				}
 			}
 		}
