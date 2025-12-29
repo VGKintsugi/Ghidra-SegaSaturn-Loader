@@ -131,8 +131,13 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 		return loadSpecs;
 	}
 
+
 	@Override
-	protected void load(ByteProvider provider, LoadSpec loadSpec, List<Option> options, Program program, TaskMonitor monitor, MessageLog log) throws CancelledException, IOException {
+	protected void load(Program program, ImporterSettings settings) throws CancelledException, IOException {
+
+		ByteProvider provider = settings.provider();
+		MessageLog log = settings.log();
+		TaskMonitor monitor = settings.monitor();
 
 		try {
 
@@ -174,9 +179,9 @@ public class SegaSaturnLoader extends AbstractLibrarySupportLoader {
 
 	@Override
 	public List<Option> getDefaultOptions(ByteProvider provider, LoadSpec loadSpec,
-			DomainObject domainObject, boolean isLoadIntoProgram) {
+			DomainObject domainObject, boolean isLoadIntoProgram, boolean mirrorFsLayout) {
 		List<Option> list =
-			super.getDefaultOptions(provider, loadSpec, domainObject, isLoadIntoProgram);
+			super.getDefaultOptions(provider, loadSpec, domainObject, isLoadIntoProgram, mirrorFsLayout);
 
 		// TODO: If this loader has custom options, add them to 'list'
 		list.add(new Option("Option name goes here", "Default option value goes here"));
